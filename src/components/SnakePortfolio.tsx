@@ -77,6 +77,12 @@ const categoryColor: Record<Category, string> = {
   fact: "var(--signal-violet)",
 };
 
+const categoryFood: Record<Category, string> = {
+  approach: "🍓",
+  project: "🍰",
+  fact: "🍭",
+};
+
 const categoryLabel: Record<Category, string> = {
   approach: "MY APPROACH",
   project: "PROJECTS",
