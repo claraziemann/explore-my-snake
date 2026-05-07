@@ -77,6 +77,12 @@ const categoryColor: Record<Category, string> = {
   fact: "var(--signal-violet)",
 };
 
+const categoryFood: Record<Category, string> = {
+  approach: "🍓",
+  project: "🍰",
+  fact: "🍭",
+};
+
 const categoryLabel: Record<Category, string> = {
   approach: "MY APPROACH",
   project: "PROJECTS",
@@ -224,7 +230,7 @@ export default function SnakePortfolio() {
           transform: "translate(-50%, -50%)",
         }}
       >
-        {/* Dots */}
+        {/* Dots as food */}
         {DOTS.map((d) => {
           const taken = collected.has(d.id);
           const cx = Math.min(d.x, size.cols - 1) * CELL + CELL / 2;
@@ -238,18 +244,17 @@ export default function SnakePortfolio() {
               <div
                 className={taken ? "" : "animate-pulse-dot"}
                 style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: 999,
-                  background: taken ? "transparent" : categoryColor[d.category],
-                  border: taken ? `1px dashed ${categoryColor[d.category]}` : "none",
-                  boxShadow: taken ? "none" : `0 0 18px ${categoryColor[d.category]}`,
-                  opacity: taken ? 0.4 : 1,
+                  fontSize: 22,
+                  lineHeight: 1,
+                  textAlign: "center",
+                  filter: taken ? "grayscale(1) opacity(0.35)" : `drop-shadow(0 0 10px ${categoryColor[d.category]})`,
                 }}
-              />
+              >
+                {categoryFood[d.category]}
+              </div>
               <div
-                className="mt-2 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.18em]"
-                style={{ color: taken ? "var(--muted-foreground)" : categoryColor[d.category], opacity: taken ? 0.5 : 0.9 }}
+                className="mt-1 whitespace-nowrap text-center font-mono text-[10px] uppercase tracking-[0.18em]"
+                style={{ color: taken ? "var(--muted-foreground)" : categoryColor[d.category], opacity: taken ? 0.5 : 0.95 }}
               >
                 {d.label}
               </div>
@@ -261,21 +266,24 @@ export default function SnakePortfolio() {
         {snake.map((s, i) => (
           <div
             key={i}
-            className="absolute"
+            className="absolute flex items-center justify-center"
             style={{
               left: s.x * CELL + 3,
               top: s.y * CELL + 3,
               width: CELL - 6,
               height: CELL - 6,
-              borderRadius: i === 0 ? 6 : 4,
+              borderRadius: i === 0 ? "60% 60% 50% 50%" : 999,
               background:
                 i === 0
                   ? "var(--primary)"
-                  : `color-mix(in oklab, var(--primary) ${Math.max(20, 90 - i * 6)}%, transparent)`,
-              boxShadow: i === 0 ? "var(--shadow-glow)" : "none",
+                  : `color-mix(in oklab, var(--primary) ${Math.max(25, 95 - i * 5)}%, white)`,
+              boxShadow: i === 0 ? "var(--shadow-glow)" : "0 1px 3px oklch(0.6 0.15 350 / 0.25)",
               transition: "left 90ms linear, top 90ms linear",
+              fontSize: 12,
             }}
-          />
+          >
+            {i === 0 ? <span style={{ filter: "drop-shadow(0 0 2px white)" }}>🎀</span> : null}
+          </div>
         ))}
       </div>
 
