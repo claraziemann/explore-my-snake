@@ -533,6 +533,17 @@ function Burst({ x, y, color }: { x: number; y: number; color: string }) {
 }
 
 function Onepager({ onReplay }: { onReplay: () => void }) {
+  useEffect(() => {
+    const prevHtml = document.documentElement.style.overflow;
+    const prevBody = document.body.style.overflow;
+    document.documentElement.style.overflow = "auto";
+    document.body.style.overflow = "auto";
+    window.scrollTo(0, 0);
+    return () => {
+      document.documentElement.style.overflow = prevHtml;
+      document.body.style.overflow = prevBody;
+    };
+  }, []);
   const groups: { key: Category; title: string; items: Dot[] }[] = [
     { key: "approach", title: "My Approach", items: DOTS.filter((d) => d.category === "approach") },
     { key: "project", title: "Selected Projects", items: DOTS.filter((d) => d.category === "project") },
