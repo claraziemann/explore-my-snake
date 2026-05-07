@@ -109,6 +109,8 @@ export default function SnakePortfolio() {
   const [collected, setCollected] = useState<Set<string>>(new Set());
   const [active, setActive] = useState<Dot | null>(null);
   const [started, setStarted] = useState(false);
+  const [bursts, setBursts] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
+  const burstId = useRef(0);
   const dirRef = useRef(dir);
   dirRef.current = dir;
 
