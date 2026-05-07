@@ -168,7 +168,10 @@ export default function SnakePortfolio() {
         );
         if (hit) {
           setCollected((c) => new Set(c).add(hit.id));
-          setActive(hit);
+          const bid = ++burstId.current;
+          setBursts((b) => [...b, { id: bid, x: hit.x, y: hit.y, color: categoryColor[hit.category] }]);
+          window.setTimeout(() => setBursts((b) => b.filter((x) => x.id !== bid)), 800);
+          window.setTimeout(() => setActive(hit), 220);
           return [newHead, ...prev];
         }
         return [newHead, ...prev.slice(0, -1)];
