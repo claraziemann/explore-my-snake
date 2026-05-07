@@ -400,3 +400,52 @@ function Key({ children }: { children: React.ReactNode }) {
     </kbd>
   );
 }
+
+function Burst({ x, y, color }: { x: number; y: number; color: string }) {
+  const palette = [color, "var(--primary)", "var(--signal-mint)", "var(--signal-violet)", "var(--accent)"];
+  const pieces = Array.from({ length: 14 });
+  return (
+    <div className="pointer-events-none absolute" style={{ left: x, top: y, width: 0, height: 0 }}>
+      {pieces.map((_, i) => {
+        const angle = (i / pieces.length) * Math.PI * 2 + Math.random() * 0.4;
+        const dist = 28 + Math.random() * 22;
+        const dx = Math.cos(angle) * dist;
+        const dy = Math.sin(angle) * dist;
+        const sz = 4 + Math.random() * 5;
+        const c = palette[i % palette.length];
+        const rot = Math.random() * 360;
+        return (
+          <span
+            key={i}
+            className="absolute block"
+            style={{
+              left: 0,
+              top: 0,
+              width: sz,
+              height: sz * (Math.random() > 0.5 ? 1 : 0.45),
+              background: c,
+              borderRadius: Math.random() > 0.5 ? 999 : 1,
+              boxShadow: `0 0 6px ${c}`,
+              ["--dx" as never]: `${dx}px`,
+              ["--dy" as never]: `${dy}px`,
+              ["--rot" as never]: `${rot}deg`,
+              animation: "confetti-burst 700ms cubic-bezier(0.2,0.7,0.3,1) forwards",
+            }}
+          />
+        );
+      })}
+      <span
+        className="absolute block"
+        style={{
+          left: -16,
+          top: -16,
+          width: 32,
+          height: 32,
+          borderRadius: 999,
+          border: `2px solid ${color}`,
+          animation: "spark-ring 600ms ease-out forwards",
+        }}
+      />
+    </div>
+  );
+}
