@@ -109,6 +109,8 @@ export default function SnakePortfolio() {
   const [collected, setCollected] = useState<Set<string>>(new Set());
   const [active, setActive] = useState<Dot | null>(null);
   const [started, setStarted] = useState(false);
+  const [bursts, setBursts] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
+  const burstId = useRef(0);
   const dirRef = useRef(dir);
   dirRef.current = dir;
 
@@ -166,7 +168,10 @@ export default function SnakePortfolio() {
         );
         if (hit) {
           setCollected((c) => new Set(c).add(hit.id));
-          setActive(hit);
+          const bid = ++burstId.current;
+          setBursts((b) => [...b, { id: bid, x: hit.x, y: hit.y, color: categoryColor[hit.category] }]);
+          window.setTimeout(() => setBursts((b) => b.filter((x) => x.id !== bid)), 800);
+          window.setTimeout(() => setActive(hit), 220);
           return [newHead, ...prev];
         }
         return [newHead, ...prev.slice(0, -1)];
@@ -260,6 +265,13 @@ export default function SnakePortfolio() {
               </div>
             </div>
           );
+        })}
+
+        {/* Confetti bursts */}
+        {bursts.map((b) => {
+          const cx = Math.min(b.x, size.cols - 1) * CELL + CELL / 2;
+          const cy = Math.min(b.y, size.rows - 1) * CELL + CELL / 2;
+          return <Burst key={b.id} x={cx} y={cy} color={b.color} />;
         })}
 
         {/* Snake */}
@@ -386,5 +398,54 @@ function Key({ children }: { children: React.ReactNode }) {
     <kbd className="inline-flex h-7 min-w-7 items-center justify-center rounded border border-border bg-surface-2 px-2 font-mono text-xs text-foreground">
       {children}
     </kbd>
+  );
+}
+
+function Burst({ x, y, color }: { x: number; y: number; color: string }) {
+  const palette = [color, "var(--primary)", "var(--signal-mint)", "var(--signal-violet)", "var(--accent)"];
+  const pieces = Array.from({ length: 14 });
+  return (
+    <div className="pointer-events-none absolute" style={{ left: x, top: y, width: 0, height: 0 }}>
+      {pieces.map((_, i) => {
+        const angle = (i / pieces.length) * Math.PI * 2 + Math.random() * 0.4;
+        const dist = 28 + Math.random() * 22;
+        const dx = Math.cos(angle) * dist;
+        const dy = Math.sin(angle) * dist;
+        const sz = 4 + Math.random() * 5;
+        const c = palette[i % palette.length];
+        const rot = Math.random() * 360;
+        return (
+          <span
+            key={i}
+            className="absolute block"
+            style={{
+              left: 0,
+              top: 0,
+              width: sz,
+              height: sz * (Math.random() > 0.5 ? 1 : 0.45),
+              background: c,
+              borderRadius: Math.random() > 0.5 ? 999 : 1,
+              boxShadow: `0 0 6px ${c}`,
+              ["--dx" as never]: `${dx}px`,
+              ["--dy" as never]: `${dy}px`,
+              ["--rot" as never]: `${rot}deg`,
+              animation: "confetti-burst 700ms cubic-bezier(0.2,0.7,0.3,1) forwards",
+            }}
+          />
+        );
+      })}
+      <span
+        className="absolute block"
+        style={{
+          left: -16,
+          top: -16,
+          width: 32,
+          height: 32,
+          borderRadius: 999,
+          border: `2px solid ${color}`,
+          animation: "spark-ring 600ms ease-out forwards",
+        }}
+      />
+    </div>
   );
 }
