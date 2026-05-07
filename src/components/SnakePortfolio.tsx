@@ -267,6 +267,13 @@ export default function SnakePortfolio() {
           );
         })}
 
+        {/* Confetti bursts */}
+        {bursts.map((b) => {
+          const cx = Math.min(b.x, size.cols - 1) * CELL + CELL / 2;
+          const cy = Math.min(b.y, size.rows - 1) * CELL + CELL / 2;
+          return <Burst key={b.id} x={cx} y={cy} color={b.color} />;
+        })}
+
         {/* Snake */}
         {snake.map((s, i) => (
           <div
