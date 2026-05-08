@@ -473,7 +473,7 @@ export default function SnakePortfolio() {
   const dirRef = useRef(dir);
   dirRef.current = dir;
 
-  const levelDots = useMemo(() => DOTS.filter((d) => LEVEL_OF[d.category] === level), [level]);
+  const levelDots = useMemo(() => DOTS.filter((d) => levelOfDot(d) === level), [level]);
   const levelDone = levelDots.every((d) => collected.has(d.id));
 
   // Resize
