@@ -509,7 +509,7 @@ export default function SnakePortfolio() {
         if (e.key === " " || e.key === "Enter" || DIRS[e.key]) {
           e.preventDefault();
           setLevel((l) => (l === 3 ? 3 : ((l + 1) as LevelId)));
-          setPhase("level-intro");
+          setPhase("playing");
         }
         return;
       }
