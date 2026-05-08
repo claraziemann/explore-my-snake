@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 
 type Category = "approach" | "project" | "resume" | "fact";
 type LevelId = 1 | 2 | 3;
+type SnakeStyle = "blocks" | "line";
 
 type Dot = {
   id: string;
@@ -70,15 +71,15 @@ const DOTS: Dot[] = [
   { id: "r1", x: 5, y: 6, category: "resume", label: "Lead Strategist",
     title: "Lead Design Strategist · Foundry&Co",
     body: "2022 — present. Lead strategist for fintech and healthcare clients. Built the research practice from 2 to 7 people.",
-    meta: "RÉSUMÉ" },
+    meta: "RESUME" },
   { id: "r2", x: 11, y: 4, category: "resume", label: "Senior Designer",
     title: "Senior Product Designer · Northwind",
     body: "2019 — 2022. Owned onboarding and growth surfaces. Shipped the redesign that became the company's reference flow.",
-    meta: "RÉSUMÉ" },
+    meta: "RESUME" },
   { id: "r3", x: 17, y: 7, category: "resume", label: "Researcher",
     title: "Design Researcher · IDEO Lisbon",
     body: "2017 — 2019. Field research across EU public services. Co-authored the housing policy playbook now used by three city governments.",
-    meta: "RÉSUMÉ" },
+    meta: "RESUME" },
   { id: "r4", x: 23, y: 5, category: "resume", label: "MA HCI",
     title: "MA Human-Computer Interaction · UCL",
     body: "Distinction. Thesis on participatory prototyping in regulated industries. Awarded the Stephen Cook prize.",
@@ -110,17 +111,10 @@ const categoryColor: Record<Category, string> = {
   fact: "var(--signal-violet)",
 };
 
-const categoryFood: Record<Category, string> = {
-  approach: "🍓",
-  project: "🍰",
-  resume: "🍒",
-  fact: "🍭",
-};
-
 const categoryLabel: Record<Category, string> = {
   approach: "MY APPROACH",
   project: "PROJECTS",
-  resume: "RÉSUMÉ",
+  resume: "RESUME",
   fact: "FUN FACTS",
 };
 
@@ -134,7 +128,323 @@ const DIRS: Record<string, Dir> = {
 
 type Phase = "intro" | "level-intro" | "playing" | "level-complete" | "finished";
 
+// =============================================================================
+// PIXEL SPRITES — drawn as 8x8 grids, scaled to fit 22px in a 28px cell
+// =============================================================================
+type Sprite = { grid: string[]; palette: Record<string, string> };
+
+const SPRITES: Record<string, Sprite> = {
+  // Strawberry — for "approach"
+  strawberry: {
+    grid: [
+      "____GG__",
+      "___GGG__",
+      "__GGGG__",
+      "_RRWRRR_",
+      "RRWRRRWR",
+      "RRRRRRRR",
+      "_RRWRRR_",
+      "__RRRR__",
+    ],
+    palette: { R: "var(--accent)", G: "var(--signal-mint)", W: "oklch(0.99 0.01 340)" },
+  },
+  // Cake slice — for "project"
+  cake: {
+    grid: [
+      "___YY___",
+      "__PPPP__",
+      "_WWWWWW_",
+      "MMMMMMMM",
+      "MWMMWMMM",
+      "MMMMMMMM",
+      "_TTTTTT_",
+      "__TTTT__",
+    ],
+    palette: {
+      M: "var(--signal-mint)",
+      W: "oklch(0.99 0.01 340)",
+      P: "var(--primary)",
+      Y: "var(--signal-yellow)",
+      T: "oklch(0.55 0.12 50)",
+    },
+  },
+  // Cherry — for "resume"
+  cherry: {
+    grid: [
+      "____GG__",
+      "___GGG__",
+      "__GGG___",
+      "_GG_GG__",
+      "PP_PPP__",
+      "PPPPPPP_",
+      "PPPPPPPP",
+      "_PPPPPP_",
+    ],
+    palette: { P: "var(--primary)", G: "var(--signal-mint)" },
+  },
+  // Lollipop — for "fact"
+  lolly: {
+    grid: [
+      "_VVVV___",
+      "VVPPVV__",
+      "VPVVPV__",
+      "VPVVPV__",
+      "VVPPVV__",
+      "_VVVV___",
+      "___K____",
+      "___K____",
+    ],
+    palette: {
+      V: "var(--signal-violet)",
+      P: "oklch(0.99 0.01 340)",
+      K: "oklch(0.55 0.10 340)",
+    },
+  },
+  // Snake head — facing right by default
+  snakeHead: {
+    grid: [
+      "_PPPPPP_",
+      "PPPPPPPP",
+      "PPWWPPWP",
+      "PWBWPWBW",
+      "PPPPPPPP",
+      "PPRRRPPP",
+      "PPPPPPPP",
+      "_PPPPPP_",
+    ],
+    palette: {
+      P: "var(--primary)",
+      W: "oklch(0.99 0.01 340)",
+      B: "oklch(0.20 0.05 340)",
+      R: "oklch(0.55 0.18 350)",
+    },
+  },
+  // Snake body segment
+  snakeBody: {
+    grid: [
+      "_PPPPPP_",
+      "PPpppppP",
+      "PpPPPPpP",
+      "PpPDDPpP",
+      "PpPDDPpP",
+      "PpPPPPpP",
+      "PpppppPP",
+      "_PPPPPP_",
+    ],
+    palette: {
+      P: "var(--primary)",
+      p: "oklch(0.80 0.16 350)",
+      D: "var(--primary-dark)",
+    },
+  },
+  // Snake tail tip
+  snakeTail: {
+    grid: [
+      "________",
+      "__PPPP__",
+      "_PPPPPP_",
+      "PPpppppP",
+      "PpppPPpP",
+      "_PpppPP_",
+      "__PPPP__",
+      "________",
+    ],
+    palette: {
+      P: "var(--primary)",
+      p: "oklch(0.80 0.16 350)",
+    },
+  },
+};
+
+function PixelSprite({
+  name,
+  size = 22,
+  rotate = 0,
+  style,
+}: {
+  name: string;
+  size?: number;
+  rotate?: number;
+  style?: React.CSSProperties;
+}) {
+  const sprite = SPRITES[name];
+  if (!sprite) return null;
+  const { grid, palette } = sprite;
+  const cell = size / 8;
+  const rects: React.ReactNode[] = [];
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const k = grid[r][c];
+      if (k === "_") continue;
+      const fill = palette[k] || "currentColor";
+      rects.push(
+        <rect
+          key={`${r}-${c}`}
+          x={c * cell}
+          y={r * cell}
+          width={cell}
+          height={cell}
+          fill={fill}
+        />,
+      );
+    }
+  }
+  return (
+    <svg
+      className="pixel"
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      style={{ display: "block", transform: `rotate(${rotate}deg)`, ...style }}
+    >
+      {rects}
+    </svg>
+  );
+}
+
+const FOOD_FOR: Record<Category, string> = {
+  approach: "strawberry",
+  project: "cake",
+  resume: "cherry",
+  fact: "lolly",
+};
+
+// =============================================================================
+// SNAKE-AS-LINE renderer — connected polyline through cell centers
+// =============================================================================
+function SnakeLine({
+  snake,
+  headAngle,
+  cell,
+  thickness,
+  color,
+}: {
+  snake: { x: number; y: number }[];
+  headAngle: number;
+  cell: number;
+  thickness: number;
+  color: string;
+}) {
+  if (!snake.length) return null;
+  // Break path on edge-wraps so we don't draw a line across the whole board
+  const segments: { x: number; y: number }[][] = [];
+  let cur = [snake[0]];
+  for (let i = 1; i < snake.length; i++) {
+    const a = snake[i - 1];
+    const b = snake[i];
+    if (Math.abs(a.x - b.x) > 1 || Math.abs(a.y - b.y) > 1) {
+      segments.push(cur);
+      cur = [b];
+    } else {
+      cur.push(b);
+    }
+  }
+  segments.push(cur);
+
+  const head = snake[0];
+  const hx = head.x * cell + cell / 2;
+  const hy = head.y * cell + cell / 2;
+
+  const dirX = Math.cos((headAngle * Math.PI) / 180);
+  const dirY = Math.sin((headAngle * Math.PI) / 180);
+  const perpX = -dirY;
+  const perpY = dirX;
+  const eyeOffset = thickness / 4;
+  const eyeForward = thickness / 5;
+  const eyeSize = Math.max(2, Math.floor(thickness / 4));
+
+  return (
+    <>
+      {segments.map((seg, si) => {
+        const points = seg
+          .map((s) => `${s.x * cell + cell / 2},${s.y * cell + cell / 2}`)
+          .join(" ");
+        return (
+          <svg
+            key={si}
+            className="pixel"
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              zIndex: 4,
+            }}
+          >
+            <polyline
+              points={points}
+              fill="none"
+              stroke={color}
+              strokeWidth={thickness}
+              strokeLinecap="butt"
+              strokeLinejoin="miter"
+            />
+            <polyline
+              points={points}
+              fill="none"
+              stroke="oklch(0.99 0.01 340 / 0.55)"
+              strokeWidth={Math.max(2, Math.floor(thickness / 4))}
+              strokeLinecap="butt"
+              strokeLinejoin="miter"
+            />
+          </svg>
+        );
+      })}
+      {/* Head cap + eyes */}
+      <div
+        style={{
+          position: "absolute",
+          left: hx,
+          top: hy,
+          width: 0,
+          height: 0,
+          zIndex: 5,
+          transition: "left 90ms steps(2, end), top 90ms steps(2, end)",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            left: -thickness / 2 - 2,
+            top: -thickness / 2 - 2,
+            width: thickness + 4,
+            height: thickness + 4,
+            background: color,
+            border: "2px solid oklch(0.20 0.05 340)",
+            boxShadow: "2px 2px 0 oklch(0.28 0.04 340 / 0.3)",
+            transform: `rotate(${headAngle}deg)`,
+          }}
+        />
+        {[-1, 1].map((s) => (
+          <div
+            key={s}
+            style={{
+              position: "absolute",
+              left: dirX * eyeForward + perpX * eyeOffset * s - eyeSize / 2,
+              top: dirY * eyeForward + perpY * eyeOffset * s - eyeSize / 2,
+              width: eyeSize,
+              height: eyeSize,
+              background: "oklch(0.99 0.01 340)",
+              boxShadow: `inset -1px -1px 0 oklch(0.20 0.05 340)`,
+            }}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+// =============================================================================
+// MAIN
+// =============================================================================
 export default function SnakePortfolio() {
+  // Visual tweaks (local UI state — wire to settings/Tweaks if you have them)
+  const [snakeStyle, setSnakeStyle] = useState<SnakeStyle>("blocks");
+  const [snakeThickness] = useState(12);
+  const [snakeColor] = useState("var(--primary)");
+
   const [size, setSize] = useState({ cols: 36, rows: 22 });
   const [snake, setSnake] = useState<{ x: number; y: number }[]>([
     { x: 16, y: 11 },
@@ -147,6 +457,7 @@ export default function SnakePortfolio() {
   const [level, setLevel] = useState<LevelId>(1);
   const [phase, setPhase] = useState<Phase>("intro");
   const [bursts, setBursts] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
+  const [score, setScore] = useState(0);
   const burstId = useRef(0);
   const dirRef = useRef(dir);
   dirRef.current = dir;
@@ -169,7 +480,7 @@ export default function SnakePortfolio() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  // Advance level when done
+  // Advance level
   useEffect(() => {
     if (phase === "playing" && levelDone && !active) {
       if (level === 3) {
@@ -232,8 +543,17 @@ export default function SnakePortfolio() {
         );
         if (hit) {
           setCollected((c) => new Set(c).add(hit.id));
+          setScore((s) => s + 100 * level);
           const bid = ++burstId.current;
-          setBursts((b) => [...b, { id: bid, x: hit.x, y: hit.y, color: categoryColor[hit.category] }]);
+          const c = getComputedStyle(document.documentElement)
+            .getPropertyValue(
+              hit.category === "approach" ? "--accent"
+                : hit.category === "project" ? "--signal-mint"
+                : hit.category === "resume" ? "--primary"
+                : "--signal-violet",
+            )
+            .trim();
+          setBursts((b) => [...b, { id: bid, x: hit.x, y: hit.y, color: c }]);
           window.setTimeout(() => setBursts((b) => b.filter((x) => x.id !== bid)), 800);
           window.setTimeout(() => setActive(hit), 220);
           return [newHead, ...prev];
@@ -246,14 +566,27 @@ export default function SnakePortfolio() {
 
   const closeActive = useCallback(() => setActive(null), []);
 
+  const headAngle =
+    dir.x === 1 ? 0 : dir.x === -1 ? 180 : dir.y === -1 ? -90 : 90;
+
   if (phase === "finished") {
-    return <Onepager onReplay={() => {
-      setCollected(new Set());
-      setLevel(1);
-      setSnake([{ x: 16, y: 11 }, { x: 15, y: 11 }, { x: 14, y: 11 }]);
-      setDir({ x: 1, y: 0 });
-      setPhase("intro");
-    }} />;
+    return (
+      <Onepager
+        score={score}
+        onReplay={() => {
+          setCollected(new Set());
+          setLevel(1);
+          setSnake([
+            { x: 16, y: 11 },
+            { x: 15, y: 11 },
+            { x: 14, y: 11 },
+          ]);
+          setDir({ x: 1, y: 0 });
+          setScore(0);
+          setPhase("intro");
+        }}
+      />
+    );
   }
 
   return (
@@ -263,40 +596,68 @@ export default function SnakePortfolio() {
       {/* HUD top */}
       <header className="absolute left-0 right-0 top-0 z-20 flex items-start justify-between px-6 py-5 md:px-10 md:py-7">
         <div>
-          <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+          <div className="font-pixel text-[9px] uppercase text-muted-foreground">
             {LEVEL_META[level].name}
           </div>
-          <h1 className="mt-1 font-display text-2xl font-semibold leading-none md:text-3xl">
-            Mira Cendrars
+          <h1
+            className="mt-3 font-pixel text-xl leading-none md:text-2xl"
+            style={{ textShadow: "3px 3px 0 var(--primary)" }}
+          >
+            MIRA CENDRARS
           </h1>
-          <div className="mt-1 font-mono text-[11px] text-muted-foreground">
-            Design strategist · Lisbon / remote
+          <div className="mt-2 font-arcade text-lg leading-none text-muted-foreground tracking-wide">
+            DESIGN STRATEGIST · LISBON / REMOTE
           </div>
         </div>
-        <div className="flex items-end gap-3">
-          {[1, 2, 3].map((l) => (
-            <div
-              key={l}
-              className="font-mono text-[10px] uppercase tracking-[0.3em]"
-              style={{
-                color: l === level ? "var(--primary)" : l < level ? "var(--muted-foreground)" : "var(--muted-foreground)",
-                opacity: l === level ? 1 : 0.55,
-              }}
-            >
-              {l < level ? "✓ " : l === level ? "▸ " : ""}Lv {l}
-            </div>
-          ))}
-          <LevelProgress dots={levelDots} collected={collected} color={categoryColor[levelDots[0]?.category ?? "approach"]} />
+        <div className="flex flex-col items-end gap-2">
+          <div className="font-pixel text-[10px]">
+            SCORE{" "}
+            <span style={{ color: "var(--primary)" }}>
+              {String(score).padStart(6, "0")}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {[1, 2, 3].map((l) => (
+              <div
+                key={l}
+                className="font-pixel text-[9px]"
+                style={{
+                  color:
+                    l === level
+                      ? "var(--primary)"
+                      : l < level
+                      ? "var(--signal-mint)"
+                      : "var(--muted-foreground)",
+                  opacity: l === level ? 1 : 0.7,
+                }}
+              >
+                {l < level ? "✓" : l === level ? "▶" : "·"} LV{l}
+              </div>
+            ))}
+          </div>
+          <LevelProgress dots={levelDots} collected={collected} />
         </div>
       </header>
 
       {/* HUD bottom */}
       <footer className="absolute bottom-0 left-0 right-0 z-20 flex items-end justify-between px-6 py-5 md:px-10 md:py-7">
-        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-          Use <Key>←</Key> <Key>↑</Key> <Key>↓</Key> <Key>→</Key> to move · eat to read
+        <div className="font-pixel text-[9px] uppercase text-muted-foreground flex items-center gap-2">
+          MOVE <Key>←</Key>
+          <Key>↑</Key>
+          <Key>↓</Key>
+          <Key>→</Key> · EAT TO READ
         </div>
-        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-          mira@cendrars.studio
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSnakeStyle((s) => (s === "blocks" ? "line" : "blocks"))}
+            className="pixel-btn"
+            type="button"
+          >
+            SNAKE: {snakeStyle.toUpperCase()}
+          </button>
+          <div className="font-pixel text-[9px] uppercase text-muted-foreground">
+            mira@cendrars.studio
+          </div>
         </div>
       </footer>
 
@@ -314,21 +675,23 @@ export default function SnakePortfolio() {
           const cx = Math.min(d.x, size.cols - 1) * CELL + CELL / 2;
           const cy = Math.min(d.y, size.rows - 1) * CELL + CELL / 2;
           return (
-            <div key={d.id} className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2" style={{ left: cx, top: cy }}>
+            <div
+              key={d.id}
+              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
+              style={{ left: cx, top: cy }}
+            >
               <div
                 className={taken ? "" : "animate-pulse-dot"}
-                style={{
-                  fontSize: 22,
-                  lineHeight: 1,
-                  textAlign: "center",
-                  filter: taken ? "grayscale(1) opacity(0.35)" : `drop-shadow(0 0 10px ${categoryColor[d.category]})`,
-                }}
+                style={{ filter: taken ? "grayscale(1) opacity(0.35)" : "none" }}
               >
-                {categoryFood[d.category]}
+                <PixelSprite name={FOOD_FOR[d.category]} size={22} />
               </div>
               <div
-                className="mt-1 whitespace-nowrap text-center font-mono text-[10px] uppercase tracking-[0.18em]"
-                style={{ color: taken ? "var(--muted-foreground)" : categoryColor[d.category], opacity: taken ? 0.5 : 0.95 }}
+                className="mt-1 whitespace-nowrap text-center font-pixel text-[8px] uppercase"
+                style={{
+                  color: taken ? "var(--muted-foreground)" : categoryColor[d.category],
+                  opacity: taken ? 0.5 : 1,
+                }}
               >
                 {d.label}
               </div>
@@ -342,48 +705,74 @@ export default function SnakePortfolio() {
           return <Burst key={b.id} x={cx} y={cy} color={b.color} />;
         })}
 
-        {snake.map((s, i) => (
-          <div
-            key={i}
-            className="absolute flex items-center justify-center"
-            style={{
-              left: s.x * CELL + 3,
-              top: s.y * CELL + 3,
-              width: CELL - 6,
-              height: CELL - 6,
-              borderRadius: i === 0 ? "60% 60% 50% 50%" : 999,
-              background:
-                i === 0
-                  ? "var(--primary)"
-                  : `color-mix(in oklab, var(--primary) ${Math.max(25, 95 - i * 5)}%, white)`,
-              boxShadow: i === 0 ? "var(--shadow-glow)" : "0 1px 3px oklch(0.6 0.15 350 / 0.25)",
-              transition: "left 90ms linear, top 90ms linear",
-              fontSize: 12,
-            }}
-          >
-            {i === 0 ? <span style={{ filter: "drop-shadow(0 0 2px white)" }}>🎀</span> : null}
-          </div>
-        ))}
+        {snakeStyle === "line" ? (
+          <SnakeLine
+            snake={snake}
+            headAngle={headAngle}
+            cell={CELL}
+            thickness={snakeThickness}
+            color={snakeColor}
+          />
+        ) : (
+          snake.map((s, i) => {
+            const isHead = i === 0;
+            const isTail = i === snake.length - 1;
+            const sprite = isHead ? "snakeHead" : isTail ? "snakeTail" : "snakeBody";
+            const rot = isHead ? headAngle : 0;
+            return (
+              <div
+                key={i}
+                className="absolute"
+                style={{
+                  left: s.x * CELL + 3,
+                  top: s.y * CELL + 3,
+                  width: CELL - 6,
+                  height: CELL - 6,
+                  transition: "left 90ms steps(2, end), top 90ms steps(2, end)",
+                  zIndex: isHead ? 5 : 4,
+                }}
+              >
+                <PixelSprite name={sprite} size={CELL - 6} rotate={rot} />
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Intro */}
       {phase === "intro" && (
         <Overlay>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-primary">
-            Press any arrow key to begin
+          <div className="font-pixel text-[10px] text-primary">
+            ★ INSERT ARROW KEY TO START ★
           </div>
-          <h2 className="mt-4 font-display text-4xl font-semibold leading-tight md:text-5xl">
-            A portfolio you have to <em className="text-primary not-italic">play</em>.
+          <h2
+            className="mt-7 font-pixel text-2xl leading-snug md:text-3xl animate-title-bob"
+            style={{ textShadow: "4px 4px 0 var(--primary)" }}
+          >
+            A PORTFOLIO<br />YOU HAVE TO{" "}
+            <span style={{ color: "var(--primary)", textShadow: "4px 4px 0 var(--foreground)" }}>
+              PLAY
+            </span>
+            .
           </h2>
-          <p className="mt-4 font-mono text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-6 font-arcade text-xl leading-snug text-muted-foreground">
             Three levels. Each one faster. Eat the treats to unlock how I work,
             what I've shipped, my résumé, and a few useless facts.
           </p>
-          <div className="mt-6 flex items-center justify-center gap-4 font-mono text-[11px] uppercase tracking-[0.3em] text-muted-foreground">
-            <span>🍓 Approach</span><span>🍰 Projects</span><span>🍒 Résumé</span><span>🍭 Fun facts</span>
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-4">
+            <FoodLegend name="strawberry" label="APPROACH" />
+            <FoodLegend name="cake" label="PROJECTS" />
+            <FoodLegend name="cherry" label="RESUME" />
+            <FoodLegend name="lolly" label="FACTS" />
           </div>
-          <div className="mt-6 flex items-center justify-center gap-2">
-            <Key>←</Key><Key>↑</Key><Key>↓</Key><Key>→</Key>
+          <div className="mt-7 flex items-center justify-center gap-2">
+            <Key>←</Key>
+            <Key>↑</Key>
+            <Key>↓</Key>
+            <Key>→</Key>
+          </div>
+          <div className="mt-5 font-pixel text-[9px] text-muted-foreground animate-blink">
+            PRESS ANY KEY
           </div>
         </Overlay>
       )}
@@ -391,28 +780,44 @@ export default function SnakePortfolio() {
       {/* Level intro */}
       {phase === "level-intro" && (
         <Overlay>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em]" style={{ color: categoryColor[levelDots[0].category] }}>
-            {LEVEL_META[level].name}
+          <div
+            className="font-pixel text-[10px]"
+            style={{ color: categoryColor[levelDots[0].category] }}
+          >
+            {LEVEL_META[level].name.toUpperCase()}
           </div>
-          <h2 className="mt-4 font-display text-4xl font-semibold leading-tight md:text-5xl">
-            {LEVEL_META[level].tagline}
+          <h2
+            className="mt-6 font-pixel text-xl leading-snug md:text-2xl"
+            style={{ textShadow: "3px 3px 0 var(--primary)" }}
+          >
+            {LEVEL_META[level].tagline.toUpperCase()}
           </h2>
-          <p className="mt-4 font-mono text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-5 font-arcade text-xl text-muted-foreground">
             Press any arrow key to start moving.
           </p>
+          <div className="mt-4 font-pixel text-[9px] text-primary animate-blink">
+            ▶ READY?
+          </div>
         </Overlay>
       )}
 
       {/* Level complete */}
       {phase === "level-complete" && (
         <Overlay>
-          <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-primary">
-            ✶ Level {level} cleared
+          <div className="font-pixel text-[10px] text-primary">
+            ★ STAGE {level} CLEAR ★
           </div>
-          <h2 className="mt-4 font-display text-4xl font-semibold leading-tight md:text-5xl">
-            Nice. The snake gets <em className="text-primary not-italic">faster</em>.
+          <h2
+            className="mt-6 font-pixel text-xl leading-snug md:text-2xl animate-title-bob"
+            style={{ textShadow: "3px 3px 0 var(--primary)" }}
+          >
+            NICE. THE SNAKE<br />GETS{" "}
+            <span style={{ color: "var(--primary)", textShadow: "3px 3px 0 var(--foreground)" }}>
+              FASTER
+            </span>
+            .
           </h2>
-          <p className="mt-4 font-mono text-sm leading-relaxed text-muted-foreground">
+          <p className="mt-5 font-arcade text-xl text-muted-foreground">
             Up next: {LEVEL_META[(level + 1) as LevelId].name}.<br />
             Press any arrow key to continue.
           </p>
@@ -421,26 +826,37 @@ export default function SnakePortfolio() {
 
       {/* Active panel */}
       {active && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/60 backdrop-blur-sm" onClick={closeActive}>
+        <div
+          className="absolute inset-0 z-40 flex items-center justify-center backdrop-blur-sm"
+          style={{ background: "oklch(0.28 0.04 340 / 0.55)" }}
+          onClick={closeActive}
+        >
           <article
-            className="panel-shadow relative mx-6 max-w-xl rounded-lg border bg-surface p-8 animate-slide-up md:p-10"
+            className="pixel-panel relative mx-6 max-w-xl p-7 animate-slide-up"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.3em]" style={{ color: categoryColor[active.category] }}>
-              <span className="inline-block h-2 w-2 rounded-full" style={{ background: categoryColor[active.category] }} />
-              {categoryLabel[active.category]} {active.meta ? `· ${active.meta}` : ""}
+            <div
+              className="mb-4 inline-flex items-center gap-2 font-pixel text-[9px]"
+              style={{ color: categoryColor[active.category] }}
+            >
+              <PixelSprite name={FOOD_FOR[active.category]} size={16} />
+              {categoryLabel[active.category]}{" "}
+              {active.meta ? `· ${active.meta}` : ""}
             </div>
-            <h3 className="font-display text-3xl font-semibold leading-tight md:text-4xl">{active.title}</h3>
-            <p className="mt-4 font-mono text-sm leading-relaxed text-muted-foreground">{active.body}</p>
-            <div className="mt-8 flex items-center justify-between">
-              <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-                {levelDots.filter((d) => collected.has(d.id)).length} / {levelDots.length} this level
+            <h3
+              className="font-pixel text-base leading-relaxed md:text-lg"
+              style={{ textShadow: "2px 2px 0 var(--primary)" }}
+            >
+              {active.title.toUpperCase()}
+            </h3>
+            <p className="mt-4 font-arcade text-xl leading-snug">{active.body}</p>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+              <div className="font-pixel text-[9px] text-muted-foreground">
+                {levelDots.filter((d) => collected.has(d.id)).length} /{" "}
+                {levelDots.length} THIS LEVEL
               </div>
-              <button
-                onClick={closeActive}
-                className="rounded border border-border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.3em] text-foreground transition-colors hover:bg-primary hover:text-primary-foreground"
-              >
-                Keep playing · esc
+              <button onClick={closeActive} className="pixel-btn pixel-btn-solid">
+                KEEP PLAYING · ESC
               </button>
             </div>
           </article>
@@ -452,49 +868,52 @@ export default function SnakePortfolio() {
 
 function Overlay({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/75 backdrop-blur-sm">
+    <div
+      className="absolute inset-0 z-30 flex items-center justify-center backdrop-blur-sm"
+      style={{ background: "oklch(0.985 0.012 340 / 0.85)" }}
+    >
       <div className="max-w-lg px-8 text-center animate-slide-up">{children}</div>
     </div>
   );
 }
 
-function LevelProgress({ dots, collected, color }: { dots: Dot[]; collected: Set<string>; color: string }) {
+function FoodLegend({ name, label }: { name: string; label: string }) {
+  return (
+    <div className="inline-flex items-center gap-2">
+      <PixelSprite name={name} size={20} />
+      <span className="font-pixel text-[9px] text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function LevelProgress({ dots, collected }: { dots: Dot[]; collected: Set<string> }) {
   return (
     <div className="flex items-center gap-1">
       {dots.map((d) => {
         const got = collected.has(d.id);
-        return (
-          <span
-            key={d.id}
-            className="inline-block h-1.5 w-4 rounded-full"
-            style={{ background: got ? color : "var(--surface-2)", boxShadow: got ? `0 0 8px ${color}` : "none" }}
-          />
-        );
+        return <span key={d.id} className={got ? "seg on" : "seg"} />;
       })}
     </div>
   );
 }
 
 function Key({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="inline-flex h-7 min-w-7 items-center justify-center rounded border border-border bg-surface-2 px-2 font-mono text-xs text-foreground">
-      {children}
-    </kbd>
-  );
+  return <kbd className="pixel-key">{children}</kbd>;
 }
 
 function Burst({ x, y, color }: { x: number; y: number; color: string }) {
-  const palette = [color, "var(--primary)", "var(--signal-mint)", "var(--signal-violet)", "var(--accent)"];
   const pieces = Array.from({ length: 14 });
   return (
-    <div className="pointer-events-none absolute" style={{ left: x, top: y, width: 0, height: 0 }}>
+    <div
+      className="pointer-events-none absolute"
+      style={{ left: x, top: y, width: 0, height: 0 }}
+    >
       {pieces.map((_, i) => {
         const angle = (i / pieces.length) * Math.PI * 2 + Math.random() * 0.4;
         const dist = 28 + Math.random() * 22;
         const dx = Math.cos(angle) * dist;
         const dy = Math.sin(angle) * dist;
-        const sz = 4 + Math.random() * 5;
-        const c = palette[i % palette.length];
+        const sz = 4 + Math.random() * 4;
         const rot = Math.random() * 360;
         return (
           <span
@@ -504,35 +923,22 @@ function Burst({ x, y, color }: { x: number; y: number; color: string }) {
               left: 0,
               top: 0,
               width: sz,
-              height: sz * (Math.random() > 0.5 ? 1 : 0.45),
-              background: c,
-              borderRadius: Math.random() > 0.5 ? 999 : 1,
-              boxShadow: `0 0 6px ${c}`,
+              height: sz,
+              background: color,
+              boxShadow: "2px 2px 0 oklch(0.28 0.04 340 / 0.4)",
               ["--dx" as never]: `${dx}px`,
               ["--dy" as never]: `${dy}px`,
               ["--rot" as never]: `${rot}deg`,
-              animation: "confetti-burst 700ms cubic-bezier(0.2,0.7,0.3,1) forwards",
+              animation: "confetti-burst 700ms steps(8, end) forwards",
             }}
           />
         );
       })}
-      <span
-        className="absolute block"
-        style={{
-          left: -16,
-          top: -16,
-          width: 32,
-          height: 32,
-          borderRadius: 999,
-          border: `2px solid ${color}`,
-          animation: "spark-ring 600ms ease-out forwards",
-        }}
-      />
     </div>
   );
 }
 
-function Onepager({ onReplay }: { onReplay: () => void }) {
+function Onepager({ score, onReplay }: { score: number; onReplay: () => void }) {
   useEffect(() => {
     const prevHtml = document.documentElement.style.overflow;
     const prevBody = document.body.style.overflow;
@@ -544,87 +950,107 @@ function Onepager({ onReplay }: { onReplay: () => void }) {
       document.body.style.overflow = prevBody;
     };
   }, []);
-  const groups: { key: Category; title: string; items: Dot[] }[] = [
-    { key: "approach", title: "My Approach", items: DOTS.filter((d) => d.category === "approach") },
-    { key: "project", title: "Selected Projects", items: DOTS.filter((d) => d.category === "project") },
-    { key: "resume", title: "Résumé", items: DOTS.filter((d) => d.category === "resume") },
-    { key: "fact", title: "Off the Clock", items: DOTS.filter((d) => d.category === "fact") },
+
+  const groups: { key: Category; title: string; food: string; items: Dot[] }[] = [
+    { key: "approach", title: "MY APPROACH", food: "strawberry", items: DOTS.filter((d) => d.category === "approach") },
+    { key: "project", title: "SELECTED PROJECTS", food: "cake", items: DOTS.filter((d) => d.category === "project") },
+    { key: "resume", title: "RESUME", food: "cherry", items: DOTS.filter((d) => d.category === "resume") },
+    { key: "fact", title: "OFF THE CLOCK", food: "lolly", items: DOTS.filter((d) => d.category === "fact") },
   ];
+
   return (
-    <main className="min-h-screen w-full overflow-y-auto bg-background text-foreground" style={{ overflow: "auto" }}>
-      <div className="mx-auto max-w-3xl px-6 py-16 md:px-10 md:py-24">
-        <div className="font-mono text-[11px] uppercase tracking-[0.3em] text-primary">
-          ✶ You finished the game
+    <main
+      className="min-h-screen w-full overflow-y-auto bg-background text-foreground relative"
+      style={{ overflow: "auto" }}
+    >
+      <div className="grid-bg fixed inset-0" />
+      <div className="relative mx-auto max-w-3xl px-6 py-16 md:px-10 md:py-20">
+        <div className="font-pixel text-[10px] text-primary">
+          ★ GAME CLEAR · SCORE {String(score).padStart(6, "0")} ★
         </div>
-        <h1 className="mt-3 font-display text-5xl font-semibold leading-[1.05] md:text-6xl">
-          Mira Cendrars
+        <h1
+          className="mt-5 font-pixel text-3xl leading-snug md:text-4xl"
+          style={{ textShadow: "5px 5px 0 var(--primary)" }}
+        >
+          MIRA<br />CENDRARS
         </h1>
-        <p className="mt-3 font-mono text-sm text-muted-foreground">
+        <p className="mt-4 font-arcade text-xl text-muted-foreground">
           Design strategist · Lisbon / remote · mira@cendrars.studio
         </p>
-        <p className="mt-8 font-display text-xl leading-relaxed text-foreground/90 md:text-2xl">
+        <p className="mt-8 font-arcade text-2xl leading-snug">
           I help teams find the question worth answering, prototype the answer
           fast, and ship the smallest version that proves it true.
         </p>
 
         {groups.map((g) => (
-          <section key={g.key} className="mt-16">
-            <div className="mb-6 flex items-center gap-3">
-              <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: categoryColor[g.key] }} />
-              <h2 className="font-mono text-[11px] uppercase tracking-[0.3em]" style={{ color: categoryColor[g.key] }}>
+          <section key={g.key} className="mt-14">
+            <div className="mb-5 flex items-center gap-3">
+              <PixelSprite name={g.food} size={20} />
+              <h2
+                className="font-pixel text-[11px]"
+                style={{ color: categoryColor[g.key], letterSpacing: "0.1em" }}
+              >
                 {g.title}
               </h2>
             </div>
-            <ul className="space-y-6">
+            <ul className="flex flex-col gap-4">
               {g.items.map((it) => (
-                <li key={it.id} className="border-t border-border pt-5">
-                  <div className="flex items-baseline justify-between gap-4">
-                    <h3 className="font-display text-xl font-semibold md:text-2xl">{it.title}</h3>
+                <li key={it.id} className="pixel-panel p-5">
+                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <h3 className="font-pixel text-[13px] leading-relaxed">
+                      {it.title.toUpperCase()}
+                    </h3>
                     {it.meta && (
-                      <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
+                      <span className="shrink-0 font-pixel text-[8px] text-muted-foreground">
                         {it.meta}
                       </span>
                     )}
                   </div>
-                  <p className="mt-2 font-mono text-sm leading-relaxed text-muted-foreground">{it.body}</p>
+                  <p className="mt-2 font-arcade text-lg leading-snug">{it.body}</p>
                 </li>
               ))}
             </ul>
           </section>
         ))}
 
-        <section className="mt-20 rounded-lg border bg-surface p-8 md:p-10 panel-shadow">
-          <h2 className="font-display text-2xl font-semibold md:text-3xl">Let's work together</h2>
-          <p className="mt-3 font-mono text-sm leading-relaxed text-muted-foreground">
+        <section className="pixel-panel mt-16 p-7">
+          <h2
+            className="font-pixel text-base leading-relaxed md:text-lg"
+            style={{ textShadow: "3px 3px 0 var(--primary)" }}
+          >
+            LET'S WORK<br />TOGETHER
+          </h2>
+          <p className="mt-3 font-arcade text-xl leading-snug">
             Available for fractional strategy engagements, research sprints, and
             embedded product work. Quickest reply by email.
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-5 flex flex-wrap gap-3">
             <a
               href="mailto:mira@cendrars.studio"
-              className="rounded border border-primary bg-primary px-4 py-2 font-mono text-[11px] uppercase tracking-[0.3em] text-primary-foreground transition-opacity hover:opacity-90"
+              className="pixel-btn pixel-btn-solid"
+              style={{ textDecoration: "none" }}
             >
-              mira@cendrars.studio
+              MIRA@CENDRARS.STUDIO
             </a>
             <a
               href="https://www.linkedin.com/"
               target="_blank"
               rel="noreferrer"
-              className="rounded border border-border px-4 py-2 font-mono text-[11px] uppercase tracking-[0.3em] text-foreground transition-colors hover:bg-surface-2"
+              className="pixel-btn"
+              style={{ textDecoration: "none" }}
             >
-              LinkedIn ↗
+              LINKEDIN ↗
             </a>
-            <button
-              onClick={onReplay}
-              className="rounded border border-border px-4 py-2 font-mono text-[11px] uppercase tracking-[0.3em] text-foreground transition-colors hover:bg-surface-2"
-            >
-              ↺ Play again
+            <button onClick={onReplay} className="pixel-btn">
+              ↺ PLAY AGAIN
             </button>
           </div>
         </section>
 
-        <footer className="mt-16 border-t border-border pt-6 font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-          © Mira Cendrars · Built as a snake game
+        <footer className="mt-14 border-t-4 pt-5" style={{ borderColor: "var(--foreground)" }}>
+          <div className="font-pixel text-[9px] text-muted-foreground">
+            © MIRA CENDRARS · BUILT AS A SNAKE GAME
+          </div>
         </footer>
       </div>
     </main>
