@@ -671,30 +671,16 @@ export default function SnakePortfolio() {
         }}
       >
         {levelDots.map((d) => {
-          const taken = collected.has(d.id);
+          if (collected.has(d.id)) return null;
           const cx = Math.min(d.x, size.cols - 1) * CELL + CELL / 2;
           const cy = Math.min(d.y, size.rows - 1) * CELL + CELL / 2;
           return (
             <div
               key={d.id}
-              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
-              style={{ left: cx, top: cy }}
+              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center animate-pulse-dot"
+              style={{ left: cx, top: cy, width: CELL * 2, height: CELL * 2 }}
             >
-              <div
-                className={taken ? "" : "animate-pulse-dot"}
-                style={{ filter: taken ? "grayscale(1) opacity(0.35)" : "none" }}
-              >
-                <PixelSprite name={FOOD_FOR[d.category]} size={22} />
-              </div>
-              <div
-                className="mt-1 whitespace-nowrap text-center font-pixel text-[8px] uppercase"
-                style={{
-                  color: taken ? "var(--muted-foreground)" : categoryColor[d.category],
-                  opacity: taken ? 0.5 : 1,
-                }}
-              >
-                {d.label}
-              </div>
+              <PixelSprite name={FOOD_FOR[d.category]} size={32} />
             </div>
           );
         })}
