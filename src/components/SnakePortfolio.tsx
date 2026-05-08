@@ -21,13 +21,24 @@ const LEVEL_OF: Record<Category, LevelId> = {
   approach: 1,
   project: 2,
   resume: 3,
-  fact: 3,
+  fact: 3, // overridden per-dot via FACT_LEVEL
 };
 
+// Spread fun facts across levels: one bonus fact per stage, rest at level 3.
+const FACT_LEVEL: Record<string, LevelId> = {
+  f1: 1,
+  f2: 2,
+  f3: 3,
+  f4: 3,
+};
+
+const levelOfDot = (d: Dot): LevelId =>
+  d.category === "fact" ? (FACT_LEVEL[d.id] ?? 3) : LEVEL_OF[d.category];
+
 const LEVEL_META: Record<LevelId, { name: string; tagline: string; speed: number }> = {
-  1: { name: "Level 1 · My Approach", tagline: "Eat the four pillars of how I work.", speed: 160 },
-  2: { name: "Level 2 · Projects", tagline: "Faster snake. Four projects to collect.", speed: 120 },
-  3: { name: "Level 3 · Résumé & Fun Facts", tagline: "Top speed. Eight bites left.", speed: 90 },
+  1: { name: "Level 1 · My Approach", tagline: "Four pillars + a fun fact hidden in the grid.", speed: 160 },
+  2: { name: "Level 2 · Projects", tagline: "Faster snake. Four projects + one fun fact.", speed: 120 },
+  3: { name: "Level 3 · Résumé & Fun Facts", tagline: "Top speed. Résumé and the last fun facts.", speed: 90 },
 };
 
 const DOTS: Dot[] = [
@@ -462,7 +473,7 @@ export default function SnakePortfolio() {
   const dirRef = useRef(dir);
   dirRef.current = dir;
 
-  const levelDots = useMemo(() => DOTS.filter((d) => LEVEL_OF[d.category] === level), [level]);
+  const levelDots = useMemo(() => DOTS.filter((d) => levelOfDot(d) === level), [level]);
   const levelDone = levelDots.every((d) => collected.has(d.id));
 
   // Resize
