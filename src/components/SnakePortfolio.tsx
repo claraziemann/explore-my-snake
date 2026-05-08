@@ -539,7 +539,10 @@ export default function SnakePortfolio() {
         if (ny >= size.rows) ny = 0;
         const newHead = { x: nx, y: ny };
         const hit = levelDots.find(
-          (d) => d.x === nx && d.y === ny && !collected.has(d.id),
+          (d) =>
+            !collected.has(d.id) &&
+            Math.abs(d.x - nx) <= 1 &&
+            Math.abs(d.y - ny) <= 1,
         );
         if (hit) {
           setCollected((c) => new Set(c).add(hit.id));
