@@ -509,7 +509,7 @@ export default function SnakePortfolio() {
         if (e.key === " " || e.key === "Enter" || DIRS[e.key]) {
           e.preventDefault();
           setLevel((l) => (l === 3 ? 3 : ((l + 1) as LevelId)));
-          setPhase("level-intro");
+          setPhase("playing");
         }
         return;
       }
@@ -539,7 +539,10 @@ export default function SnakePortfolio() {
         if (ny >= size.rows) ny = 0;
         const newHead = { x: nx, y: ny };
         const hit = levelDots.find(
-          (d) => d.x === nx && d.y === ny && !collected.has(d.id),
+          (d) =>
+            !collected.has(d.id) &&
+            Math.abs(d.x - nx) <= 1 &&
+            Math.abs(d.y - ny) <= 1,
         );
         if (hit) {
           setCollected((c) => new Set(c).add(hit.id));
@@ -671,30 +674,16 @@ export default function SnakePortfolio() {
         }}
       >
         {levelDots.map((d) => {
-          const taken = collected.has(d.id);
+          if (collected.has(d.id)) return null;
           const cx = Math.min(d.x, size.cols - 1) * CELL + CELL / 2;
           const cy = Math.min(d.y, size.rows - 1) * CELL + CELL / 2;
           return (
             <div
               key={d.id}
-              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center"
-              style={{ left: cx, top: cy }}
+              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center animate-pulse-dot"
+              style={{ left: cx, top: cy, width: CELL * 2, height: CELL * 2 }}
             >
-              <div
-                className={taken ? "" : "animate-pulse-dot"}
-                style={{ filter: taken ? "grayscale(1) opacity(0.35)" : "none" }}
-              >
-                <PixelSprite name={FOOD_FOR[d.category]} size={22} />
-              </div>
-              <div
-                className="mt-1 whitespace-nowrap text-center font-pixel text-[8px] uppercase"
-                style={{
-                  color: taken ? "var(--muted-foreground)" : categoryColor[d.category],
-                  opacity: taken ? 0.5 : 1,
-                }}
-              >
-                {d.label}
-              </div>
+              <PixelSprite name={FOOD_FOR[d.category]} size={32} />
             </div>
           );
         })}
